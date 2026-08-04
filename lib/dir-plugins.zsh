@@ -19,7 +19,7 @@ typeset -g  _omz_dirplug_last=''   # last-seen value of $OMZ_DIR_PLUGINS
 typeset -ga _omz_dirplug_rec       # undo records of the plugin being loaded
 typeset -gA _omz_dirplug_prev_fn        # shadowed function bodies to restore
 typeset -ga _omz_dirplug_shadow_names
-_omz_dirplug_shadow_names=(alias unalias autoload bindkey zle)
+_omz_dirplug_shadow_names=(alias unalias autoload bindkey zle zstyle compdef)
 
 # Undo log format: records joined with \x1e, fields within a record joined
 # with \x1f. Field 1 is the record type.
@@ -183,6 +183,75 @@ _omz_dirplug_wrap_zle() {
   builtin zle "$@"
 }
 
+# Tracks the setting forms `zstyle pattern style ...` and
+# `zstyle -e pattern style ...`. Queries and deletions are forwarded
+# untracked. Restoring an overwritten -e style loses its eval flag.
+_omz_dirplug_wrap_zstyle() {
+  emulate -L zsh
+  local pat style
+  if [[ $# -ge 2 && "${1-}" != -* ]]; then
+    pat="$1" style="$2"
+  elif [[ "${1-}" == -e && $# -ge 3 ]]; then
+    pat="$2" style="$3"
+  fi
+  if [[ -n "$pat" ]]; then
+    local -a prev
+    if builtin zstyle -g prev "$pat" "$style" && (( $#prev )); then
+      _omz_dirplug_rec+=("zstyle_overwrote"$'\x1f'"$pat"$'\x1f'"$style"$'\x1f'"${(pj:\x1f:)prev}")
+    else
+      _omz_dirplug_rec+=("zstyle_new"$'\x1f'"$pat"$'\x1f'"$style")
+    fi
+  fi
+  builtin zstyle "$@"
+}
+
+# compdef is a function defined by compinit, so the original is forwarded
+# to via the copy _omz_dirplug_shadow_on made. The _comps diff catches
+# every command the call affected, whatever its argument form.
+_omz_dirplug_wrap_compdef() {
+  emulate -L zsh
+  local -A comps_pre
+  comps_pre=("${(@kv)_comps}")
+  if (( ${+functions[_omz_dirplug_real_compdef]} )); then
+    _omz_dirplug_real_compdef "$@"
+  fi
+  local cmd
+  for cmd in ${(k)_comps}; do
+    if (( ! ${+comps_pre[$cmd]} )); then
+      _omz_dirplug_rec+=("comp_new"$'\x1f'"$cmd")
+    elif [[ "${_comps[$cmd]}" != "${comps_pre[$cmd]}" ]]; then
+      _omz_dirplug_rec+=("comp_overwrote"$'\x1f'"$cmd"$'\x1f'"${comps_pre[$cmd]}")
+    fi
+  done
+}
+
+# compinit already ran at startup, so completion files of a directory
+# plugin are not picked up from fpath. Register them directly: parse each
+# _file's `#compdef cmd...` line, mark the function for autoload, and map
+# the commands in _comps.
+_omz_dirplug_register_completions() {
+  emulate -L zsh
+  local base="$1" cfile fun line cmd
+  (( ${+_comps} )) || return 0
+  for cfile in "$base"/_*(N.); do
+    fun="${cfile:t}"
+    read -r line < "$cfile" || continue
+    [[ "$line" == '#compdef '* ]] || continue
+    (( ${+functions[$fun]} )) && continue
+    builtin autoload -Uz "$fun"
+    _omz_dirplug_rec+=("function_new"$'\x1f'"$fun")
+    for cmd in ${${=line}[2,-1]}; do
+      [[ "$cmd" == -* ]] && continue
+      if (( ${+_comps[$cmd]} )); then
+        _omz_dirplug_rec+=("comp_overwrote"$'\x1f'"$cmd"$'\x1f'"${_comps[$cmd]}")
+      else
+        _omz_dirplug_rec+=("comp_new"$'\x1f'"$cmd")
+      fi
+      _comps[$cmd]="$fun"
+    done
+  done
+}
+
 # No `emulate -L zsh` on this function itself, and note the `source` line
 # below is not inside any of the anonymous functions either: the plugin
 # must be sourced under the same shell options a startup plugin gets, and
@@ -230,6 +299,7 @@ _omz_dirplug_load() {
     for d in ${fpath:|fpath_pre}; do
       _omz_dirplug_rec+=("fpath_add"$'\x1f'"$d")
     done
+    _omz_dirplug_register_completions "$base"
     _omz_dirplug_logs[$name]="${(pj:\x1e:)_omz_dirplug_rec}"
   }
   _omz_dirplug_loaded+=("$name")
@@ -291,6 +361,18 @@ _omz_dirplug_unload() {
         builtin zle -A ".${fields[2]}" "${fields[2]}"
         ;;
       esac
+      ;;
+    zstyle_new)
+      builtin zstyle -d "${fields[2]}" "${fields[3]}"
+      ;;
+    zstyle_overwrote)
+      builtin zstyle "${fields[2]}" "${fields[3]}" "${(@)fields[4,-1]}"
+      ;;
+    comp_new)
+      builtin unset "_comps[${fields[2]}]" 2>/dev/null
+      ;;
+    comp_overwrote)
+      _comps[${fields[2]}]="${fields[3]}"
       ;;
     esac
   done
