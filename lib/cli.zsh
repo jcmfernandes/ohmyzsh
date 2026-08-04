@@ -495,7 +495,7 @@ function _omz::plugin::list {
   if (( ${#dir_plugins} )); then
     (( ${#custom_plugins} + ${#builtin_plugins} )) && echo # add a line of separation
 
-    print -P "%U%BDirectory plugins%b%u (active via \$OMZ_DIR_PLUGINS):"
+    print -P "%U%BDirectory plugins%b%u:"
     print -lac ${(q-)dir_plugins}
   fi
 }
