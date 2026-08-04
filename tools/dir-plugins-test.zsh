@@ -265,6 +265,8 @@ unset OMZ_DIR_PLUGINS
 _omz_dirplug_sync
 t_assert "cli: plugin list --enabled excludes unloaded dir plugin" \
   '! _omz::plugin::list --enabled | grep -qx basicplug'
+t_assert "cli: piped list contains no quoted-empty entries" \
+  "! _omz::plugin::list --enabled | grep -qx \"''\""
 
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
