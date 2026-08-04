@@ -41,3 +41,5 @@ jobs:
                       ./themes/*.zsh-theme; do
             zsh -n "$file" || return 1
           done
+      - name: Run dir-plugins tests
+        run: zsh -f tools/dir-plugins-test.zsh
