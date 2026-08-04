@@ -114,6 +114,32 @@ t_assert "ksh_arrays: delta unload correct" \
 unset OMZ_DIR_PLUGINS
 _omz_dirplug_sync
 
+# --- alias tracking and restore ----------------------------------------------
+alias ovr_alias='echo original'
+alias ovr_removed='echo original-removed'
+OMZ_DIR_PLUGINS="overwriteplug"
+_omz_dirplug_sync
+t_assert "alias: plugin overwrote alias" \
+  '[[ ${aliases[ovr_alias]} == "echo plugin-version" ]]'
+t_assert "alias: plugin removed alias" \
+  '(( ! ${+aliases[ovr_removed]} ))'
+t_assert "alias: global alias defined" \
+  '(( ${+galiases[OVRG]} ))'
+t_assert "shadow: wrappers not active outside sourcing" \
+  '(( ! ${+functions[alias]} ))'
+
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "restore: overwritten alias restored" \
+  '[[ ${aliases[ovr_alias]} == "echo original" ]]'
+t_assert "restore: new alias removed" \
+  '(( ! ${+aliases[ovr_new]} ))'
+t_assert "restore: new global alias removed" \
+  '(( ! ${+galiases[OVRG]} ))'
+t_assert "restore: removed alias restored" \
+  '[[ ${aliases[ovr_removed]} == "echo original-removed" ]]'
+unalias ovr_alias ovr_removed
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))
