@@ -21,8 +21,11 @@ typeset -ga _omz_dirplug_rec       # undo records of the plugin being loaded
 # Undo log format: records joined with \x1e, fields within a record joined
 # with \x1f. Field 1 is the record type.
 
+# No `emulate -L zsh` here: LOCAL_OPTIONS is dynamically scoped, and this
+# function calls _omz_dirplug_load, which sources plugin code further down
+# the call chain. Localizing options here would revert any setopt a plugin
+# makes as soon as sync returns.
 _omz_dirplug_sync() {
-  emulate -L zsh
   [[ "${OMZ_DIR_PLUGINS-}" == "$_omz_dirplug_last" ]] && return 0
   _omz_dirplug_last="${OMZ_DIR_PLUGINS-}"
 

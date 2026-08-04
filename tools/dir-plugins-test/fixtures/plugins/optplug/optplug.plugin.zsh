@@ -1,0 +1,1 @@
+setopt pushd_ignore_dups
