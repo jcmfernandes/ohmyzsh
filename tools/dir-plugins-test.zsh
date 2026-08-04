@@ -140,6 +140,31 @@ t_assert "restore: removed alias restored" \
   '[[ ${aliases[ovr_removed]} == "echo original-removed" ]]'
 unalias ovr_alias ovr_removed
 
+# --- bindkey and widget tracking ---------------------------------------------
+bindkey '^Xz' undo
+OMZ_DIR_PLUGINS="keyplug"
+_omz_dirplug_sync
+t_assert "zle: widget defined" \
+  '[[ ${widgets[keyplug-widget]-} == user:keyplug_widget ]]'
+t_assert "zle: builtin widget overridden" \
+  '[[ ${widgets[up-line-or-history]-} == user:keyplug_widget ]]'
+t_assert "bindkey: existing binding overridden" \
+  '[[ "$(bindkey "^Xz")" == *keyplug-widget ]]'
+t_assert "bindkey: new binding set" \
+  '[[ "$(bindkey "^Xq")" == *keyplug-widget ]]'
+
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "zle restore: new widget deleted" \
+  '(( ! ${+widgets[keyplug-widget]} ))'
+t_assert "zle restore: builtin widget restored" \
+  '[[ ${widgets[up-line-or-history]-} == builtin ]]'
+t_assert "bindkey restore: overridden binding restored" \
+  '[[ "$(bindkey "^Xz")" == *" undo" ]]'
+t_assert "bindkey restore: new binding removed" \
+  '[[ "$(bindkey "^Xq")" == *undefined-key ]]'
+bindkey -r '^Xz'
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))
