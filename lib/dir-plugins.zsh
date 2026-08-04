@@ -35,6 +35,7 @@ _omz_dirplug_sync() {
   local -a to_load to_unload
   () {
     emulate -L zsh
+    local IFS=$' \t\n'
     local -aU want
     want=(${=OMZ_DIR_PLUGINS-})
     want=(${want:|plugins})   # user-level plugins are not ours to manage
@@ -243,6 +244,7 @@ _omz_dirplug_wrap_add_zsh_hook() {
 # the commands in _comps.
 _omz_dirplug_register_completions() {
   emulate -L zsh
+  local IFS=$' \t\n'
   local base="$1" cfile fun line cmd
   (( ${+_comps} )) || return 0
   for cfile in "$base"/_*(N.); do
@@ -335,7 +337,7 @@ _omz_dirplug_unload() {
       (( ${+functions[${fields[2]}]} )) && unfunction -- "${fields[2]}"
       ;;
     fpath_add)
-      fpath=(${fpath:#${fields[2]}})
+      fpath=(${fpath:#"${fields[2]}"})
       ;;
     alias_new)
       builtin unset "aliases[${fields[2]}]" 2>/dev/null
