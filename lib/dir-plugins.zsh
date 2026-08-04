@@ -241,7 +241,7 @@ _omz_dirplug_register_completions() {
     builtin autoload -Uz "$fun"
     _omz_dirplug_rec+=("function_new"$'\x1f'"$fun")
     for cmd in ${${=line}[2,-1]}; do
-      [[ "$cmd" == -* ]] && continue
+      [[ "$cmd" == -* ]] && break   # option forms (-p/-n/-k...) take args; stop rather than misregister
       if (( ${+_comps[$cmd]} )); then
         _omz_dirplug_rec+=("comp_overwrote"$'\x1f'"$cmd"$'\x1f'"${_comps[$cmd]}")
       else

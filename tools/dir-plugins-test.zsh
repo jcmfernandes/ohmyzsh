@@ -179,6 +179,8 @@ t_assert "compfile: completion file registered" \
   '[[ ${_comps[omztestcmd]-} == _compplug ]]'
 t_assert "compfile: completion function autoloadable" \
   '(( ${+functions[_compplug]} ))'
+t_assert "compfile: option-form #compdef registers no commands" \
+  '(( ! ${+_comps[omzedge*]} )) && (( ! ${+_comps[-p]} ))'
 
 unset OMZ_DIR_PLUGINS
 _omz_dirplug_sync
