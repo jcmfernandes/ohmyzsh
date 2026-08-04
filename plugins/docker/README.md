@@ -41,7 +41,8 @@ zstyle ':omz:plugins:docker' legacy-completion yes
 
 ### For Podman's Docker wrapper users
 
-If you use Podman's Docker wrapper, you need to enable legacy completion. See above section.
+Podman's Docker wrapper generates its own completion, which the plugin picks up automatically. Enable
+legacy completion (see above section) only if you would rather have Docker's bundled completion script.
 
 ## Aliases
 
