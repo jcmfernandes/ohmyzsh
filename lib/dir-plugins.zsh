@@ -19,7 +19,7 @@ typeset -g  _omz_dirplug_last=''   # last-seen value of $OMZ_DIR_PLUGINS
 typeset -ga _omz_dirplug_rec       # undo records of the plugin being loaded
 typeset -gA _omz_dirplug_prev_fn        # shadowed function bodies to restore
 typeset -ga _omz_dirplug_shadow_names
-_omz_dirplug_shadow_names=(alias unalias autoload)
+_omz_dirplug_shadow_names=(alias unalias autoload bindkey zle)
 
 # Undo log format: records joined with \x1e, fields within a record joined
 # with \x1f. Field 1 is the record type.
@@ -139,6 +139,50 @@ _omz_dirplug_wrap_autoload() {
   builtin autoload "$@"
 }
 
+# Tracks the forms `bindkey [-M keymap] [-s] in-string out`. Other forms
+# (keymap creation, -e/-v, listing) are forwarded untracked.
+_omz_dirplug_wrap_bindkey() {
+  emulate -L zsh
+  local km=main
+  local -a args
+  args=("$@")
+  if [[ "${args[1]-}" == -M ]]; then
+    km="${args[2]-}"
+    args=("${(@)args[3,-1]}")
+  fi
+  if [[ "${args[1]-}" == -s ]]; then
+    args=("${(@)args[2,-1]}")
+  fi
+  if [[ $#args -eq 2 && "${args[1]}" != -* ]]; then
+    local seq="${args[1]}" prev prevkind=none prevvalue=''
+    prev="$(builtin bindkey -M "$km" -- "$seq" 2>/dev/null)"
+    prev="${prev#*\" }"
+    if [[ -z "$prev" || "$prev" == undefined-key ]]; then
+      prevkind=none
+    elif [[ "$prev" == \"*\" ]]; then
+      prevkind=string
+      prevvalue="${${prev#\"}%\"}"
+    else
+      prevkind=widget
+      prevvalue="$prev"
+    fi
+    _omz_dirplug_rec+=("bindkey"$'\x1f'"$km"$'\x1f'"$seq"$'\x1f'"$prevkind"$'\x1f'"$prevvalue")
+  fi
+  builtin bindkey "$@"
+}
+
+_omz_dirplug_wrap_zle() {
+  emulate -L zsh
+  if [[ "${1-}" == -N && -n "${2-}" ]]; then
+    if (( ${+widgets[$2]} )); then
+      _omz_dirplug_rec+=("widget_overwrote"$'\x1f'"$2"$'\x1f'"${widgets[$2]}")
+    else
+      _omz_dirplug_rec+=("widget_new"$'\x1f'"$2")
+    fi
+  fi
+  builtin zle "$@"
+}
+
 # No `emulate -L zsh` on this function itself, and note the `source` line
 # below is not inside any of the anonymous functions either: the plugin
 # must be sourced under the same shell options a startup plugin gets, and
@@ -194,7 +238,7 @@ _omz_dirplug_load() {
 _omz_dirplug_unload() {
   emulate -L zsh
   local name="$1" rec
-  local -a records fields
+  local -a records fields wparts
 
   records=("${(@ps:\x1e:)_omz_dirplug_logs[$name]}")
   for rec in ${(Oa)records}; do
@@ -222,6 +266,30 @@ _omz_dirplug_unload() {
       case "${fields[4]}" in
       a) aliases[${fields[2]}]="${fields[3]}" ;;
       g) galiases[${fields[2]}]="${fields[3]}" ;;
+      esac
+      ;;
+    bindkey)
+      case "${fields[4]}" in
+      none)   builtin bindkey -M "${fields[2]}" -r -- "${fields[3]}" 2>/dev/null ;;
+      widget) builtin bindkey -M "${fields[2]}" -- "${fields[3]}" "${fields[5]}" ;;
+      string) builtin bindkey -M "${fields[2]}" -s -- "${fields[3]}" "${fields[5]}" ;;
+      esac
+      ;;
+    widget_new)
+      builtin zle -D "${fields[2]}" 2>/dev/null
+      ;;
+    widget_overwrote)
+      case "${fields[3]}" in
+      user:*)
+        builtin zle -N "${fields[2]}" "${fields[3]#user:}"
+        ;;
+      completion:*)
+        wparts=(${(s.:.)fields[3]})
+        builtin zle -C "${fields[2]}" "${wparts[2]}" "${wparts[3]}"
+        ;;
+      builtin)
+        builtin zle -A ".${fields[2]}" "${fields[2]}"
+        ;;
       esac
       ;;
     esac
