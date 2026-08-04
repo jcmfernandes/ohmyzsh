@@ -17,6 +17,9 @@ typeset -gA _omz_dirplug_logs      # plugin name -> undo log
 typeset -ga _omz_dirplug_loaded    # loaded dir plugins, in load order
 typeset -g  _omz_dirplug_last=''   # last-seen value of $OMZ_DIR_PLUGINS
 typeset -ga _omz_dirplug_rec       # undo records of the plugin being loaded
+typeset -gA _omz_dirplug_prev_fn        # shadowed function bodies to restore
+typeset -ga _omz_dirplug_shadow_names
+_omz_dirplug_shadow_names=(alias unalias autoload)
 
 # Undo log format: records joined with \x1e, fields within a record joined
 # with \x1f. Field 1 is the record type.
@@ -48,6 +51,94 @@ _omz_dirplug_sync() {
   done
 }
 
+_omz_dirplug_shadow_on() {
+  emulate -L zsh
+  local name wrap
+  for name in $_omz_dirplug_shadow_names; do
+    wrap="${name//-/_}"
+    if (( ${+functions[$name]} )); then
+      _omz_dirplug_prev_fn[$name]="$functions[$name]"
+      functions[_omz_dirplug_real_$wrap]="$functions[$name]"
+    fi
+    functions[$name]="$functions[_omz_dirplug_wrap_$wrap]"
+  done
+}
+
+_omz_dirplug_shadow_off() {
+  emulate -L zsh
+  local name wrap
+  for name in $_omz_dirplug_shadow_names; do
+    wrap="${name//-/_}"
+    if (( ${+_omz_dirplug_prev_fn[$name]} )); then
+      functions[$name]="$_omz_dirplug_prev_fn[$name]"
+    else
+      unfunction -- "$name" 2>/dev/null
+    fi
+    unfunction -- "_omz_dirplug_real_$wrap" 2>/dev/null
+  done
+  _omz_dirplug_prev_fn=()
+}
+
+_omz_dirplug_wrap_alias() {
+  emulate -L zsh
+  local arg name kind=a
+  for arg in "$@"; do
+    case "$arg" in
+    -g) kind=g ;;
+    -s) kind=s ;;
+    -*) ;;
+    *=*)
+      name="${arg%%=*}"
+      case "$kind" in
+      a)
+        if (( ${+aliases[$name]} )); then
+          _omz_dirplug_rec+=("alias_overwrote"$'\x1f'"$name"$'\x1f'"${aliases[$name]}")
+        else
+          _omz_dirplug_rec+=("alias_new"$'\x1f'"$name")
+        fi
+        ;;
+      g)
+        if (( ${+galiases[$name]} )); then
+          _omz_dirplug_rec+=("galias_overwrote"$'\x1f'"$name"$'\x1f'"${galiases[$name]}")
+        else
+          _omz_dirplug_rec+=("galias_new"$'\x1f'"$name")
+        fi
+        ;;
+      esac
+      ;;
+    esac
+  done
+  builtin alias "$@"
+}
+
+_omz_dirplug_wrap_unalias() {
+  emulate -L zsh
+  local arg
+  for arg in "$@"; do
+    [[ "$arg" == -* ]] && continue
+    if (( ${+aliases[$arg]} )); then
+      _omz_dirplug_rec+=("alias_removed"$'\x1f'"$arg"$'\x1f'"${aliases[$arg]}"$'\x1f'"a")
+    elif (( ${+galiases[$arg]} )); then
+      _omz_dirplug_rec+=("alias_removed"$'\x1f'"$arg"$'\x1f'"${galiases[$arg]}"$'\x1f'"g")
+    fi
+  done
+  builtin unalias "$@"
+}
+
+# Redundant with the functions-table diff in _omz_dirplug_load for most
+# calls, but catches names an interrupted source would otherwise miss.
+# Duplicate records are harmless: unload guards on existence.
+_omz_dirplug_wrap_autoload() {
+  emulate -L zsh
+  local arg
+  for arg in "$@"; do
+    [[ "$arg" == [-+]* ]] && continue
+    (( ${+functions[$arg]} )) && continue
+    _omz_dirplug_rec+=("function_new"$'\x1f'"$arg")
+  done
+  builtin autoload "$@"
+}
+
 # No `emulate -L zsh` on this function itself, and note the `source` line
 # below is not inside any of the anonymous functions either: the plugin
 # must be sourced under the same shell options a startup plugin gets, and
@@ -76,9 +167,14 @@ _omz_dirplug_load() {
   fpath=("$base" "${fpath[@]}")
   _omz_dirplug_rec=()
 
-  if [[ -f "$base/$name.plugin.zsh" ]]; then
-    builtin source "$base/$name.plugin.zsh"
-  fi
+  _omz_dirplug_shadow_on
+  {
+    if [[ -f "$base/$name.plugin.zsh" ]]; then
+      builtin source "$base/$name.plugin.zsh"
+    fi
+  } always {
+    _omz_dirplug_shadow_off
+  }
 
   () {
     emulate -L zsh
@@ -109,6 +205,24 @@ _omz_dirplug_unload() {
       ;;
     fpath_add)
       fpath=(${fpath:#${fields[2]}})
+      ;;
+    alias_new)
+      builtin unset "aliases[${fields[2]}]" 2>/dev/null
+      ;;
+    alias_overwrote)
+      aliases[${fields[2]}]="${fields[3]}"
+      ;;
+    galias_new)
+      builtin unset "galiases[${fields[2]}]" 2>/dev/null
+      ;;
+    galias_overwrote)
+      galiases[${fields[2]}]="${fields[3]}"
+      ;;
+    alias_removed)
+      case "${fields[4]}" in
+      a) aliases[${fields[2]}]="${fields[3]}" ;;
+      g) galiases[${fields[2]}]="${fields[3]}" ;;
+      esac
       ;;
     esac
   done
