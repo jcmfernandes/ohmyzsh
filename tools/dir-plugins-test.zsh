@@ -256,6 +256,16 @@ _omz_dirplug_sync
 t_assert "compfile: service-form plugin unloads cleanly" \
   '(( ! ${+_comps[svccmd]} )) && (( ! ${+functions[_svcplug]} ))'
 
+# --- omz plugin list shows active directory plugins --------------------------
+OMZ_DIR_PLUGINS="basicplug"
+_omz_dirplug_sync
+t_assert "cli: plugin list --enabled includes active dir plugin" \
+  '_omz::plugin::list --enabled | grep -qx basicplug'
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "cli: plugin list --enabled excludes unloaded dir plugin" \
+  '! _omz::plugin::list --enabled | grep -qx basicplug'
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))

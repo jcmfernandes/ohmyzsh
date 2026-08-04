@@ -454,7 +454,7 @@ function _omz::plugin::info {
 }
 
 function _omz::plugin::list {
-  local -a custom_plugins builtin_plugins
+  local -a custom_plugins builtin_plugins dir_plugins
 
   # If --enabled is provided, only list what's enabled
   if [[ "$1" == "--enabled" ]]; then
@@ -466,6 +466,8 @@ function _omz::plugin::list {
         builtin_plugins+=("${plugin}")
       fi
     done
+    # Directory plugins currently loaded via $OMZ_DIR_PLUGINS
+    dir_plugins=("${_omz_dirplug_loaded[@]}")
   else
     custom_plugins=("$ZSH_CUSTOM"/plugins/*(-/N:t))
     builtin_plugins=("$ZSH"/plugins/*(-/N:t))
@@ -473,7 +475,7 @@ function _omz::plugin::list {
 
   # If the command is being piped, print all found line by line
   if [[ ! -t 1 ]]; then
-    print -l ${(q-)custom_plugins} ${(q-)builtin_plugins}
+    print -l ${(q-)custom_plugins} ${(q-)builtin_plugins} ${(q-)dir_plugins}
     return
   fi
 
@@ -487,6 +489,13 @@ function _omz::plugin::list {
 
     print -P "%U%BBuilt-in plugins%b%u:"
     print -lac ${(q-)builtin_plugins}
+  fi
+
+  if (( ${#dir_plugins} )); then
+    (( ${#custom_plugins} + ${#builtin_plugins} )) && echo # add a line of separation
+
+    print -P "%U%BDirectory plugins%b%u (active via \$OMZ_DIR_PLUGINS):"
+    print -lac ${(q-)dir_plugins}
   fi
 }
 
