@@ -225,6 +225,18 @@ _omz_dirplug_wrap_compdef() {
   done
 }
 
+# add-zsh-hook is a function; forward to the copy _omz_dirplug_shadow_on
+# made. Removals (-d/-D) are forwarded untracked.
+_omz_dirplug_wrap_add_zsh_hook() {
+  emulate -L zsh
+  if [[ "${1-}" != -* && $# -ge 2 ]]; then
+    _omz_dirplug_rec+=("hook_added"$'\x1f'"$1"$'\x1f'"$2")
+  fi
+  if (( ${+functions[_omz_dirplug_real_add_zsh_hook]} )); then
+    _omz_dirplug_real_add_zsh_hook "$@"
+  fi
+}
+
 # compinit already ran at startup, so completion files of a directory
 # plugin are not picked up from fpath. Register them directly: parse each
 # _file's `#compdef cmd...` line, mark the function for autoload, and map
@@ -260,18 +272,6 @@ _omz_dirplug_register_completions() {
 # (e.g. KSH_ARRAYS) can't corrupt the before/after diff, while `emulate -L`
 # reverts when each anonymous function returns and never leaks into the
 # source line or the caller.
-# add-zsh-hook is a function; forward to the copy _omz_dirplug_shadow_on
-# made. Removals (-d/-D) are forwarded untracked.
-_omz_dirplug_wrap_add_zsh_hook() {
-  emulate -L zsh
-  if [[ "${1-}" != -* && $# -ge 2 ]]; then
-    _omz_dirplug_rec+=("hook_added"$'\x1f'"$1"$'\x1f'"$2")
-  fi
-  if (( ${+functions[_omz_dirplug_real_add_zsh_hook]} )); then
-    _omz_dirplug_real_add_zsh_hook "$@"
-  fi
-}
-
 _omz_dirplug_load() {
   local name="$1" base
   if is_plugin "$ZSH_CUSTOM" "$name"; then
