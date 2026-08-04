@@ -161,6 +161,29 @@ them or it will break._
 Each built-in plugin includes a **README**, documenting it. This README should show the aliases (if the plugin
 adds any) and extra goodies that are included in that particular plugin.
 
+#### Per-Directory Plugins
+
+Besides the always-enabled `plugins` array, extra plugins can be enabled only while you are inside a
+given directory (or any of its subdirectories). Oh My Zsh keeps the loaded set in sync with the
+`OMZ_DIR_PLUGINS` environment variable: a space-separated list of plugin names.
+
+The recommended way to set the variable is [direnv](https://direnv.net), which provides the trust
+mechanism (`direnv allow`), directory scoping, and unsetting the variable when you leave. With direnv
+hooked into zsh (see also the `direnv` plugin), add an `.envrc` to your project:
+
+```sh
+export OMZ_DIR_PLUGINS="docker kubectl"
+```
+
+Plugins load right before the next prompt after you enter the directory and unload when you leave.
+Plugins already enabled in the `plugins` array are ignored. Any other tool that exports environment
+variables per directory — or a manual `export` — works the same way.
+
+Unloading reverses what the plugin defined when it was sourced: functions, aliases, completions,
+widgets, key bindings, zstyles, hooks, and `fpath` entries, restoring anything the plugin overwrote.
+Exported environment variables, `setopt` changes, and background processes are not reverted; a plugin
+can define a `<name>_plugin_unload` function to clean those up — it runs on unload.
+
 ### Themes
 
 We'll admit it. Early in the Oh My Zsh world, we may have gotten a bit too theme-happy. We have over one
