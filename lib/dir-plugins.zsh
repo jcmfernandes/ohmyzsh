@@ -294,6 +294,12 @@ _omz_dirplug_load() {
   fpath=("$base" "${fpath[@]}")
   _omz_dirplug_rec=()
 
+  # Register completion files before sourcing, mirroring startup order:
+  # compinit indexes a plugin's _* files before the plugin is sourced, and
+  # plugins (e.g. rails) rely on that with service-form compdef calls that
+  # reference their own completion.
+  _omz_dirplug_register_completions "$base"
+
   _omz_dirplug_shadow_on
   {
     if [[ -f "$base/$name.plugin.zsh" ]]; then
@@ -313,7 +319,6 @@ _omz_dirplug_load() {
     for d in ${fpath:|fpath_pre}; do
       _omz_dirplug_rec+=("fpath_add"$'\x1f'"$d")
     done
-    _omz_dirplug_register_completions "$base"
     _omz_dirplug_logs[$name]="${(pj:\x1e:)_omz_dirplug_rec}"
   }
   _omz_dirplug_loaded+=("$name")
