@@ -246,6 +246,16 @@ IFS=$' \t\n'
 t_assert "ifs: unload intact under modified IFS" \
   '(( ! ${+functions[basicplug_hello]} )) && (( ! ${+functions[otherplug_hello]} ))'
 
+# --- completion files register before the plugin sources ---------------------
+OMZ_DIR_PLUGINS="svcplug"
+_omz_dirplug_sync 2> "$ZSH_CACHE_DIR/svc.txt"
+t_assert "compfile: service-form compdef in plugin resolves (registered pre-source)" \
+  '[[ ! -s "$ZSH_CACHE_DIR/svc.txt" ]] && [[ ${_comps[svccmd]-} == _svcplug ]]'
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "compfile: service-form plugin unloads cleanly" \
+  '(( ! ${+_comps[svccmd]} )) && (( ! ${+functions[_svcplug]} ))'
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))
