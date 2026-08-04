@@ -232,6 +232,20 @@ _omz_dirplug_sync
 t_assert "fail: partial load fully unloaded" \
   '(( ! ${+functions[failplug_early]} )) && (( ! ${+aliases[failplug_alias]} ))'
 
+# --- sync robust under modified IFS ------------------------------------------
+IFS=$'\n'
+OMZ_DIR_PLUGINS="basicplug otherplug"
+_omz_dirplug_sync
+IFS=$' \t\n'
+t_assert "ifs: both plugins loaded under modified IFS" \
+  '(( ${+functions[basicplug_hello]} )) && (( ${+functions[otherplug_hello]} ))'
+IFS=$'\n'
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+IFS=$' \t\n'
+t_assert "ifs: unload intact under modified IFS" \
+  '(( ! ${+functions[basicplug_hello]} )) && (( ! ${+functions[otherplug_hello]} ))'
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))
