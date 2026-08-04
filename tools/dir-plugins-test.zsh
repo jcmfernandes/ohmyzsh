@@ -196,6 +196,42 @@ t_assert "compfile restore: completion function removed" \
   '(( ! ${+functions[_compplug]} ))'
 zstyle -d ':omz:test:ovr'
 
+# --- zsh hook tracking and unload hook convention ----------------------------
+OMZ_DIR_PLUGINS="hookplug"
+_omz_dirplug_sync
+t_assert "hook: registered" \
+  '(( ${precmd_functions[(Ie)hookplug_precmd]} ))'
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "hook: deregistered on unload" \
+  '(( ! ${precmd_functions[(Ie)hookplug_precmd]} ))'
+t_assert "unload hook: ran on unload" \
+  '[[ ${UNLOAD_ORDER[-1]-} == hookplug ]]'
+t_assert "unload hook: removed after running" \
+  '(( ! ${+functions[hookplug_plugin_unload]} ))'
+
+UNLOAD_ORDER=()
+OMZ_DIR_PLUGINS="otherplug hookplug"
+_omz_dirplug_sync
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "unload order: reverse of load order" \
+  '[[ "${(j: :)UNLOAD_ORDER}" == "hookplug otherplug" ]]'
+
+# --- failure containment -----------------------------------------------------
+OMZ_DIR_PLUGINS="failplug"
+_omz_dirplug_sync 2>/dev/null
+t_assert "fail: pre-failure state loaded" \
+  '(( ${+functions[failplug_early]} )) && (( ${+aliases[failplug_alias]} ))'
+t_assert "fail: post-failure code not run" \
+  '(( ! ${+functions[failplug_late]} ))'
+t_assert "fail: wrappers not leaked" \
+  '(( ! ${+functions[alias]} )) && (( ! ${+functions[bindkey]} ))'
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "fail: partial load fully unloaded" \
+  '(( ! ${+functions[failplug_early]} )) && (( ! ${+aliases[failplug_alias]} ))'
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))

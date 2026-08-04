@@ -19,7 +19,7 @@ typeset -g  _omz_dirplug_last=''   # last-seen value of $OMZ_DIR_PLUGINS
 typeset -ga _omz_dirplug_rec       # undo records of the plugin being loaded
 typeset -gA _omz_dirplug_prev_fn        # shadowed function bodies to restore
 typeset -ga _omz_dirplug_shadow_names
-_omz_dirplug_shadow_names=(alias unalias autoload bindkey zle zstyle compdef)
+_omz_dirplug_shadow_names=(alias unalias autoload bindkey zle zstyle compdef add-zsh-hook)
 
 # Undo log format: records joined with \x1e, fields within a record joined
 # with \x1f. Field 1 is the record type.
@@ -260,6 +260,18 @@ _omz_dirplug_register_completions() {
 # (e.g. KSH_ARRAYS) can't corrupt the before/after diff, while `emulate -L`
 # reverts when each anonymous function returns and never leaks into the
 # source line or the caller.
+# add-zsh-hook is a function; forward to the copy _omz_dirplug_shadow_on
+# made. Removals (-d/-D) are forwarded untracked.
+_omz_dirplug_wrap_add_zsh_hook() {
+  emulate -L zsh
+  if [[ "${1-}" != -* && $# -ge 2 ]]; then
+    _omz_dirplug_rec+=("hook_added"$'\x1f'"$1"$'\x1f'"$2")
+  fi
+  if (( ${+functions[_omz_dirplug_real_add_zsh_hook]} )); then
+    _omz_dirplug_real_add_zsh_hook "$@"
+  fi
+}
+
 _omz_dirplug_load() {
   local name="$1" base
   if is_plugin "$ZSH_CUSTOM" "$name"; then
@@ -309,6 +321,11 @@ _omz_dirplug_unload() {
   emulate -L zsh
   local name="$1" rec
   local -a records fields wparts
+
+  if (( ${+functions[${name}_plugin_unload]} )); then
+    "${name}_plugin_unload"
+    unfunction -- "${name}_plugin_unload" 2>/dev/null
+  fi
 
   records=("${(@ps:\x1e:)_omz_dirplug_logs[$name]}")
   for rec in ${(Oa)records}; do
@@ -373,6 +390,9 @@ _omz_dirplug_unload() {
       ;;
     comp_overwrote)
       _comps[${fields[2]}]="${fields[3]}"
+      ;;
+    hook_added)
+      add-zsh-hook -d "${fields[2]}" "${fields[3]}" 2>/dev/null
       ;;
     esac
   done
