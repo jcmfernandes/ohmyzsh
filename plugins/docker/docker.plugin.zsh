@@ -57,13 +57,24 @@ if [[ ! -f "$ZSH_CACHE_DIR/completions/_docker" ]]; then
 fi
 
 {
-  # `docker completion` is only available from 23.0.0 on
-  # docker version returns `Docker version 24.0.2, build cb74dfcd85`
-  # with `s:,:` remove the comma after the version, and select third word of it
-  if zstyle -t ':omz:plugins:docker' legacy-completion || \
-    ! is-at-least 23.0.0 ${${(s:,:z)"$(command docker --version)"}[3]}; then
-        command cp "${0:h}/completions/_docker" "$ZSH_CACHE_DIR/completions/_docker"
+  # `docker completion` exists in Docker 23.0.0 and later, and in every
+  # Docker-compatible CLI built with cobra (Podman's docker wrapper, nerdctl,
+  # ...). Those wrappers report their own version -- Podman prints
+  # `docker version 5.8.2` -- so comparing `docker --version` against 23.0.0
+  # misreads them as legacy and hands them Docker's bundled completion, which
+  # doesn't describe the CLI they actually run. Ask the CLI to generate one,
+  # and only fall back to the bundled file when it can't.
+  if ! zstyle -t ':omz:plugins:docker' legacy-completion && \
+    _docker_completion="$(command docker completion zsh 2>/dev/null)" && \
+    [[ -n "$_docker_completion" ]]; then
+        # The cached file may be an unwritable copy of the bundled one (see
+        # below), so replace it instead of truncating it in place.
+        command rm -f "$ZSH_CACHE_DIR/completions/_docker"
+        print -r -- "$_docker_completion" > "$ZSH_CACHE_DIR/completions/_docker"
       else
-        command docker completion zsh | tee "$ZSH_CACHE_DIR/completions/_docker" > /dev/null
+        # -f: the bundled file can sit on read-only media -- a Nix store path,
+        # say -- and cp copies its mode, leaving behind a destination that no
+        # later run can open for writing.
+        command cp -f "${0:h}/completions/_docker" "$ZSH_CACHE_DIR/completions/_docker"
   fi
 } &|
