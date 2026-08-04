@@ -165,6 +165,35 @@ t_assert "bindkey restore: new binding removed" \
   '[[ "$(bindkey "^Xq")" == *undefined-key ]]'
 bindkey -r '^Xz'
 
+# --- zstyle and completion tracking ------------------------------------------
+zstyle ':omz:test:ovr' color blue
+OMZ_DIR_PLUGINS="compplug"
+_omz_dirplug_sync
+t_assert "zstyle: plugin style set" \
+  'zstyle -t ":omz:test:compplug" answer yes'
+t_assert "zstyle: plugin overwrote style" \
+  'zstyle -t ":omz:test:ovr" color red'
+t_assert "compdef: plugin compdef registered" \
+  '[[ ${_comps[omztestcmd2]-} == _files ]]'
+t_assert "compfile: completion file registered" \
+  '[[ ${_comps[omztestcmd]-} == _compplug ]]'
+t_assert "compfile: completion function autoloadable" \
+  '(( ${+functions[_compplug]} ))'
+
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "zstyle restore: new style deleted" \
+  '! zstyle -m ":omz:test:compplug" answer "*"'
+t_assert "zstyle restore: overwritten style restored" \
+  'zstyle -t ":omz:test:ovr" color blue'
+t_assert "compdef restore: plugin compdef removed" \
+  '(( ! ${+_comps[omztestcmd2]} ))'
+t_assert "compfile restore: completion removed" \
+  '(( ! ${+_comps[omztestcmd]} ))'
+t_assert "compfile restore: completion function removed" \
+  '(( ! ${+functions[_compplug]} ))'
+zstyle -d ':omz:test:ovr'
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))
