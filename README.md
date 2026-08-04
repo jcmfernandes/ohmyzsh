@@ -177,7 +177,8 @@ export OMZ_DIR_PLUGINS="docker kubectl"
 
 Plugins load right before the next prompt after you enter the directory and unload when you leave.
 Plugins already enabled in the `plugins` array are ignored. Any other tool that exports environment
-variables per directory — or a manual `export` — works the same way.
+variables per directory — or a manual `export` — works the same way. Run `omz plugin list --enabled`
+to see the enabled plugins, including the directory plugins currently loaded.
 
 Unloading reverses what the plugin defined when it was sourced: functions, aliases, completions,
 widgets, key bindings, zstyles, hooks, and `fpath` entries, restoring anything the plugin overwrote.
