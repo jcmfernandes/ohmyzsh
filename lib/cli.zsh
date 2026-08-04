@@ -475,7 +475,8 @@ function _omz::plugin::list {
 
   # If the command is being piped, print all found line by line
   if [[ ! -t 1 ]]; then
-    print -l ${(q-)custom_plugins} ${(q-)builtin_plugins} ${(q-)dir_plugins}
+    # Quoted [@] forms so empty arrays expand to no words instead of ''
+    print -l "${(q-)custom_plugins[@]}" "${(q-)builtin_plugins[@]}" "${(q-)dir_plugins[@]}"
     return
   fi
 
