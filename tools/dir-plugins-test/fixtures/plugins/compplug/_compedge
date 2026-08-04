@@ -1,0 +1,2 @@
+#compdef -p omzedge*
+_files "$@"
