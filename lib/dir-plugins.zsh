@@ -29,24 +29,33 @@ _omz_dirplug_sync() {
   [[ "${OMZ_DIR_PLUGINS-}" == "$_omz_dirplug_last" ]] && return 0
   _omz_dirplug_last="${OMZ_DIR_PLUGINS-}"
 
-  local -aU want
   local -a to_load to_unload
-  want=(${=OMZ_DIR_PLUGINS-})
-  want=(${want:|plugins})   # user-level plugins are not ours to manage
-  to_unload=(${_omz_dirplug_loaded:|want})
-  to_load=(${want:|_omz_dirplug_loaded})
+  () {
+    emulate -L zsh
+    local -aU want
+    want=(${=OMZ_DIR_PLUGINS-})
+    want=(${want:|plugins})   # user-level plugins are not ours to manage
+    to_unload=(${(Oa)${_omz_dirplug_loaded:|want}})   # reverse load order
+    to_load=(${want:|_omz_dirplug_loaded})
+  }
 
   local name
-  for name in ${(Oa)to_unload}; do   # unload in reverse load order
+  for name in "${to_unload[@]}"; do
     _omz_dirplug_unload "$name"
   done
-  for name in $to_load; do
+  for name in "${to_load[@]}"; do
     _omz_dirplug_load "$name"
   done
 }
 
-# No `emulate -L zsh` here: the plugin must be sourced under the same shell
-# options a startup plugin gets, and any setopt it performs must persist.
+# No `emulate -L zsh` on this function itself, and note the `source` line
+# below is not inside any of the anonymous functions either: the plugin
+# must be sourced under the same shell options a startup plugin gets, and
+# any setopt it performs must persist. All the surrounding bookkeeping runs
+# inside `emulate -L zsh` anonymous functions instead, so ambient options
+# (e.g. KSH_ARRAYS) can't corrupt the before/after diff, while `emulate -L`
+# reverts when each anonymous function returns and never leaks into the
+# source line or the caller.
 _omz_dirplug_load() {
   local name="$1" base
   if is_plugin "$ZSH_CUSTOM" "$name"; then
@@ -59,26 +68,30 @@ _omz_dirplug_load() {
   fi
 
   local -a fpath_pre fkeys_pre
-  fpath_pre=($fpath)
-  fkeys_pre=(${(k)functions})
-  fpath=("$base" $fpath)
+  () {
+    emulate -L zsh
+    fpath_pre=($fpath)
+    fkeys_pre=(${(k)functions})
+  }
+  fpath=("$base" "${fpath[@]}")
   _omz_dirplug_rec=()
 
   if [[ -f "$base/$name.plugin.zsh" ]]; then
     builtin source "$base/$name.plugin.zsh"
   fi
 
-  local f
-  for f in ${${(k)functions}:|fkeys_pre}; do
-    [[ "$f" == _omz_dirplug* ]] && continue
-    _omz_dirplug_rec+=("function_new"$'\x1f'"$f")
-  done
-  local d
-  for d in ${fpath:|fpath_pre}; do
-    _omz_dirplug_rec+=("fpath_add"$'\x1f'"$d")
-  done
-
-  _omz_dirplug_logs[$name]="${(pj:\x1e:)_omz_dirplug_rec}"
+  () {
+    emulate -L zsh
+    local f d
+    for f in ${${(k)functions}:|fkeys_pre}; do
+      [[ "$f" == _omz_dirplug* ]] && continue
+      _omz_dirplug_rec+=("function_new"$'\x1f'"$f")
+    done
+    for d in ${fpath:|fpath_pre}; do
+      _omz_dirplug_rec+=("fpath_add"$'\x1f'"$d")
+    done
+    _omz_dirplug_logs[$name]="${(pj:\x1e:)_omz_dirplug_rec}"
+  }
   _omz_dirplug_loaded+=("$name")
 }
 

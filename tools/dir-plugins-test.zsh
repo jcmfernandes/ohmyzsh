@@ -98,6 +98,22 @@ t_assert "options: setopt not reverted by unload" \
   '[[ -o pushd_ignore_dups ]]'
 unsetopt pushd_ignore_dups
 
+# --- sync robust under ksh_arrays --------------------------------------------
+setopt ksh_arrays
+OMZ_DIR_PLUGINS="basicplug otherplug"
+_omz_dirplug_sync
+unsetopt ksh_arrays
+t_assert "ksh_arrays: both plugins loaded" \
+  '(( ${+functions[basicplug_hello]} )) && (( ${+functions[otherplug_hello]} ))'
+setopt ksh_arrays
+OMZ_DIR_PLUGINS="otherplug"
+_omz_dirplug_sync
+unsetopt ksh_arrays
+t_assert "ksh_arrays: delta unload correct" \
+  '(( ! ${+functions[basicplug_hello]} )) && (( ${+functions[otherplug_hello]} ))'
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+
 # --- results -----------------------------------------------------------------
 print -r -- "# pass: $T_PASS fail: $T_FAIL"
 (( T_FAIL == 0 ))
