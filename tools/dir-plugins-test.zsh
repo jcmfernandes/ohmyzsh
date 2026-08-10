@@ -256,6 +256,27 @@ _omz_dirplug_sync
 t_assert "compfile: service-form plugin unloads cleanly" \
   '(( ! ${+_comps[svccmd]} )) && (( ! ${+functions[_svcplug]} ))'
 
+# --- prompt parameter tracking -----------------------------------------------
+# The aws plugin splices $(aws_prompt_info) into RPROMPT. Unload removes the
+# function, so an unreverted prompt renders "command not found" forever after.
+PROMPT='%~ '
+unset RPROMPT
+OMZ_DIR_PLUGINS="promptplug"
+_omz_dirplug_sync
+t_assert "prompt: plugin extended PROMPT" \
+  '[[ "$PROMPT" == "[pp]%~ " ]]'
+t_assert "prompt: plugin set RPROMPT" \
+  '[[ "$RPROMPT" == *promptplug_info* ]]'
+
+unset OMZ_DIR_PLUGINS
+_omz_dirplug_sync
+t_assert "prompt restore: overwritten PROMPT restored" \
+  '[[ "$PROMPT" == "%~ " ]]'
+t_assert "prompt restore: new RPROMPT cleared" \
+  '[[ -z "$RPROMPT" ]]'
+t_assert "prompt restore: prompt expands without error" \
+  '[[ -z "$(print -rP -- "$PROMPT$RPROMPT" 2>&1 >/dev/null)" ]]'
+
 # --- omz plugin list shows active directory plugins --------------------------
 OMZ_DIR_PLUGINS="basicplug"
 _omz_dirplug_sync

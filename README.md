@@ -181,9 +181,12 @@ variables per directory — or a manual `export` — works the same way. Run `om
 to see the enabled plugins, including the directory plugins currently loaded.
 
 Unloading reverses what the plugin defined when it was sourced: functions, aliases, completions,
-widgets, key bindings, zstyles, hooks, and `fpath` entries, restoring anything the plugin overwrote.
-Exported environment variables, `setopt` changes, and background processes are not reverted; a plugin
-can define a `<name>_plugin_unload` function to clean those up — it runs on unload.
+widgets, key bindings, zstyles, hooks, `fpath` entries, and the prompt parameters (`PROMPT`,
+`RPROMPT` and friends), restoring anything the plugin overwrote. Prompt parameters matter because
+plugins such as `aws` splice a call to one of their own functions into `RPROMPT`; leaving that in
+place would make every later prompt render a "command not found" error. Other parameters, exported
+environment variables, `setopt` changes, and background processes are not reverted; a plugin can
+define a `<name>_plugin_unload` function to clean those up — it runs on unload.
 
 ### Themes
 
