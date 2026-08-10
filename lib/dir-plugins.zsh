@@ -8,10 +8,13 @@
 #   export OMZ_DIR_PLUGINS="docker kubectl"
 #
 # Plugins load when the variable gains their name and unload when it loses
-# it. Unloading reverses what the plugin defined while it was sourced.
-# Exported environment variables, setopt changes, and background processes
-# are not reverted; a plugin may define `<name>_plugin_unload` to clean
-# those up itself.
+# it. Unloading reverses what the plugin defined while it was sourced,
+# including the prompt parameters: plugins such as aws splice a call to one
+# of their own functions into $RPROMPT, and leaving that behind would make
+# every later prompt render an error once the function is gone.
+# Other parameters, exported environment variables, setopt changes, and
+# background processes are not reverted; a plugin may define
+# `<name>_plugin_unload` to clean those up itself.
 
 typeset -gA _omz_dirplug_logs      # plugin name -> undo log
 typeset -ga _omz_dirplug_loaded    # loaded dir plugins, in load order
@@ -20,6 +23,15 @@ typeset -ga _omz_dirplug_rec       # undo records of the plugin being loaded
 typeset -gA _omz_dirplug_prev_fn        # shadowed function bodies to restore
 typeset -ga _omz_dirplug_shadow_names
 _omz_dirplug_shadow_names=(alias unalias autoload bindkey zle zstyle compdef add-zsh-hook)
+# Both spellings of every prompt parameter. PROMPT and PS1 share storage,
+# but their set flags are independent: assigning RPROMPT leaves RPS1
+# reading empty and vice versa, so a pair is only fully described by
+# snapshotting both names.
+typeset -ga _omz_dirplug_prompt_params
+_omz_dirplug_prompt_params=(
+  PS1 PROMPT PS2 PROMPT2 PS3 PROMPT3 PS4 PROMPT4
+  RPS1 RPROMPT RPS2 RPROMPT2 SPROMPT
+)
 
 # Undo log format: records joined with \x1e, fields within a record joined
 # with \x1f. Field 1 is the record type.
@@ -286,10 +298,15 @@ _omz_dirplug_load() {
   fi
 
   local -a fpath_pre fkeys_pre
+  local -A prompt_pre
   () {
     emulate -L zsh
     fpath_pre=($fpath)
     fkeys_pre=(${(k)functions})
+    local p
+    for p in $_omz_dirplug_prompt_params; do
+      [[ -v "$p" ]] && prompt_pre[$p]="${(P)p}"
+    done
   }
   fpath=("$base" "${fpath[@]}")
   _omz_dirplug_rec=()
@@ -311,7 +328,7 @@ _omz_dirplug_load() {
 
   () {
     emulate -L zsh
-    local f d
+    local f d p
     for f in ${${(k)functions}:|fkeys_pre}; do
       [[ "$f" == _omz_dirplug* ]] && continue
       _omz_dirplug_rec+=("function_new"$'\x1f'"$f")
@@ -319,6 +336,20 @@ _omz_dirplug_load() {
     for d in ${fpath:|fpath_pre}; do
       _omz_dirplug_rec+=("fpath_add"$'\x1f'"$d")
     done
+    # Unload replays records in reverse, and a pair sharing storage needs
+    # its unset applied before the other name's value is put back. Emitting
+    # every prompt_overwrote ahead of every prompt_new makes the reversed
+    # replay run the unsets first, whatever order the names came in.
+    local -a prompt_set prompt_unset
+    for p in $_omz_dirplug_prompt_params; do
+      if (( ${+prompt_pre[$p]} )); then
+        [[ -v "$p" && "${(P)p}" == "${prompt_pre[$p]}" ]] && continue
+        prompt_set+=("prompt_overwrote"$'\x1f'"$p"$'\x1f'"${prompt_pre[$p]}")
+      elif [[ -v "$p" ]]; then
+        prompt_unset+=("prompt_new"$'\x1f'"$p")
+      fi
+    done
+    _omz_dirplug_rec+=("${prompt_set[@]}" "${prompt_unset[@]}")
     _omz_dirplug_logs[$name]="${(pj:\x1e:)_omz_dirplug_rec}"
   }
   _omz_dirplug_loaded+=("$name")
@@ -400,6 +431,12 @@ _omz_dirplug_unload() {
       ;;
     hook_added)
       add-zsh-hook -d "${fields[2]}" "${fields[3]}" 2>/dev/null
+      ;;
+    prompt_new)
+      builtin unset -- "${fields[2]}" 2>/dev/null
+      ;;
+    prompt_overwrote)
+      builtin typeset -g -- "${fields[2]}"="${fields[3]}"
       ;;
     esac
   done
