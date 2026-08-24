@@ -56,6 +56,7 @@ if [[ ! -f "$ZSH_CACHE_DIR/completions/_docker" ]]; then
   _comps[docker]=_docker
 fi
 
+zmodload -F zsh/files b:zf_mv
 {
   # `docker completion` exists in Docker 23.0.0 and later, and in every
   # Docker-compatible CLI built with cobra (Podman's docker wrapper, nerdctl,
@@ -64,13 +65,16 @@ fi
   # misreads them as legacy and hands them Docker's bundled completion, which
   # doesn't describe the CLI they actually run. Ask the CLI to generate one,
   # and only fall back to the bundled file when it can't.
+  #
+  # TMPPREFIX puts the process substitution's temporary file next to the cache
+  # file, so zf_mv installs it with a rename: never a half-written completion
+  # for a concurrent shell to read, and no need to be able to write the
+  # destination, which may be an unwritable copy left by the fallback below.
+  TMPPREFIX="$ZSH_CACHE_DIR/completions/_docker"
   if ! zstyle -t ':omz:plugins:docker' legacy-completion && \
     _docker_completion="$(command docker completion zsh 2>/dev/null)" && \
     [[ -n "$_docker_completion" ]]; then
-        # The cached file may be an unwritable copy of the bundled one (see
-        # below), so replace it instead of truncating it in place.
-        command rm -f "$ZSH_CACHE_DIR/completions/_docker"
-        print -r -- "$_docker_completion" > "$ZSH_CACHE_DIR/completions/_docker"
+        zf_mv -f -- =( print -r -- "$_docker_completion" ) "$TMPPREFIX"
       else
         # -f: the bundled file can sit on read-only media -- a Nix store path,
         # say -- and cp copies its mode, leaving behind a destination that no

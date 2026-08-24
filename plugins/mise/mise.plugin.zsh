@@ -22,5 +22,12 @@ fi
 # after it has emitted "hide cursor" but never the restore, leaving the
 # terminal without a visible cursor.
 if [[ ! -s "$comp_file" || "$commands[mise]" -nt "$comp_file" ]]; then
-  mise completion zsh >| "$comp_file" 2>/dev/null &|
+  zmodload -F zsh/files b:zf_mv
+  () {
+    # TMPPREFIX puts the process substitution's temporary file next to the
+    # cache file, so zf_mv installs it with a rename and no shell ever reads
+    # a half-written completion.
+    local TMPPREFIX="$comp_file"
+    zf_mv -f -- =( mise completion zsh 2>/dev/null ) "$TMPPREFIX"
+  } &|
 fi
