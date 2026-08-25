@@ -79,6 +79,6 @@ zmodload -F zsh/files b:zf_mv
         # -f: the bundled file can sit on read-only media -- a Nix store path,
         # say -- and cp copies its mode, leaving behind a destination that no
         # later run can open for writing.
-        command cp -f "${0:h}/completions/_docker" "$ZSH_CACHE_DIR/completions/_docker"
+        command cp -f "${0:A:h}/completions/_docker" "$ZSH_CACHE_DIR/completions/_docker"
   fi
 } &|
