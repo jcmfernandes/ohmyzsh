@@ -70,11 +70,12 @@ zmodload -F zsh/files b:zf_mv
   # file, so zf_mv installs it with a rename: never a half-written completion
   # for a concurrent shell to read, and no need to be able to write the
   # destination, which may be an unwritable copy left by the fallback below.
-  TMPPREFIX="$ZSH_CACHE_DIR/completions/_docker"
+  # The leading dot keeps the temporary file out of compinit's $fpath scan.
+  TMPPREFIX="$ZSH_CACHE_DIR/completions/._docker"
   if ! zstyle -t ':omz:plugins:docker' legacy-completion && \
     _docker_completion="$(command docker completion zsh 2>/dev/null)" && \
     [[ -n "$_docker_completion" ]]; then
-        zf_mv -f -- =( print -r -- "$_docker_completion" ) "$TMPPREFIX"
+        zf_mv -f -- =( print -r -- "$_docker_completion" ) "$ZSH_CACHE_DIR/completions/_docker"
       else
         # -f: the bundled file can sit on read-only media -- a Nix store path,
         # say -- and cp copies its mode, leaving behind a destination that no

@@ -31,8 +31,9 @@ if [[ ! -s "$comp_file" || "$commands[mise]" -nt "$comp_file" ]]; then
   () {
     # TMPPREFIX puts the process substitution's temporary file next to the
     # cache file, so zf_mv installs it with a rename and no shell ever reads
-    # a half-written completion.
-    local TMPPREFIX="$comp_file"
-    zf_mv -f -- =( mise completion zsh 2>/dev/null ) "$TMPPREFIX"
+    # a half-written completion. The leading dot keeps it out of compinit's
+    # $fpath scan.
+    local TMPPREFIX="$ZSH_CACHE_DIR/completions/._mise"
+    zf_mv -f -- =( mise completion zsh 2>/dev/null ) "$comp_file"
   } &|
 fi
