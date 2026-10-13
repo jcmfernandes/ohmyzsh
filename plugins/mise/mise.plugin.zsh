@@ -1,5 +1,5 @@
 if (( $+commands[mise] )); then
-  _mise_bin=mise
+  _mise_bin=$commands[mise]
 elif [[ -x ~/.local/bin/mise ]]; then
   _mise_bin=~/.local/bin/mise
 else
@@ -8,7 +8,6 @@ fi
 
 # Load mise hooks
 eval "$($_mise_bin activate zsh)"
-unset _mise_bin
 
 # If the completion file doesn't exist yet, we need to autoload it and
 # bind it to `mise`. Otherwise, compinit will have already done that.
@@ -26,7 +25,7 @@ fi
 # terminal too, raising SIGTTIN and stopping this background job mid-prompt --
 # after it has emitted "hide cursor" but never the restore, leaving the
 # terminal without a visible cursor.
-if [[ ! -s "$comp_file" || "$commands[mise]" -nt "$comp_file" ]]; then
+if [[ ! -s "$comp_file" || "$_mise_bin" -nt "$comp_file" ]]; then
   zmodload -F zsh/files b:zf_mv
   () {
     # TMPPREFIX puts the process substitution's temporary file next to the
@@ -34,6 +33,8 @@ if [[ ! -s "$comp_file" || "$commands[mise]" -nt "$comp_file" ]]; then
     # a half-written completion. The leading dot keeps it out of compinit's
     # $fpath scan.
     local TMPPREFIX="$ZSH_CACHE_DIR/completions/._mise"
-    zf_mv -f -- =( mise completion zsh 2>/dev/null ) "$comp_file"
+    zf_mv -f -- =( "$_mise_bin" completion zsh 2>/dev/null ) "$comp_file"
   } &|
 fi
+
+unset _mise_bin
